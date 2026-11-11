@@ -32,7 +32,7 @@ jobs:
           adb version
           yes | sdkmanager --licenses > /dev/null || true
 
-           - name: Gradle ile APK derle
+               - name: Gradle ile APK derle
         run: |
           gradle --version
           gradle :app:assembleDebug --stacktrace --no-daemon
