@@ -1,0 +1,45 @@
+name: LiderTv Android deneme APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Android bagimsiz cekirdek testleri
+        run: bash tools/test-core.sh
+      - name: Gradle wrapper dosyalarini olustur
+        run: gradle wrapper --gradle-version 8.11.1 --distribution-type bin --gradle-distribution-sha256-sum f397b287023acdba1e9f6fc5ea72d22dd63669d59ed4a289a29b1a76eee151c6
+      - name: Deneme APK derle
+        run: ./gradlew :app:assembleDebug --stacktrace
+      - name: Paketi adlandir
+        run: |
+          mkdir -p output
+          cp app/build/outputs/apk/debug/app-debug.apk output/LiderTv_0.1.0_Telefon_TV.apk
+          cd output
+          sha256sum LiderTv_0.1.0_Telefon_TV.apk > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiderTv_0.1.0_Telefon_TV_Deneme
+          path: output/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiderTv_Gradle_Wrapper
+          path: |
+            gradlew
+            gradlew.bat
+            gradle/wrapper/
