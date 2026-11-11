@@ -1,0 +1,98 @@
+[
+  {
+    "test": "Sample has exactly one source",
+    "pass": true
+  },
+  {
+    "test": "Latest shelf remains latest even with other requested sort",
+    "pass": true
+  },
+  {
+    "test": "Global cast search",
+    "pass": true
+  },
+  {
+    "test": "Scoped search excludes cast",
+    "pass": true
+  },
+  {
+    "test": "PIN not stored in plaintext",
+    "pass": true
+  },
+  {
+    "test": "Folder lock filters all",
+    "pass": true
+  },
+  {
+    "test": "Folder lock filters movies",
+    "pass": true
+  },
+  {
+    "test": "Folder lock filters favorites",
+    "pass": true
+  },
+  {
+    "test": "Folder lock filters recent",
+    "pass": true
+  },
+  {
+    "test": "Folder lock filters continue",
+    "pass": true
+  },
+  {
+    "test": "Folder lock filters new",
+    "pass": true
+  },
+  {
+    "test": "Folder lock blocks details",
+    "pass": true
+  },
+  {
+    "test": "Folder lock blocks play",
+    "pass": true
+  },
+  {
+    "test": "Folder lock blocks favorite",
+    "pass": true
+  },
+  {
+    "test": "PIN cannot be overwritten while locked",
+    "pass": true
+  },
+  {
+    "test": "PIN unlock restores access",
+    "pass": true
+  },
+  {
+    "test": "Resume position retained",
+    "pass": true
+  },
+  {
+    "test": "Navigation reorder persisted",
+    "pass": true
+  },
+  {
+    "test": "Category reorder persisted",
+    "pass": true
+  },
+  {
+    "test": "Hidden content excluded from global view",
+    "pass": true
+  },
+  {
+    "test": "Five wrong PINs rejected",
+    "pass": true
+  },
+  {
+    "test": "PIN attempt throttle enforced",
+    "pass": true
+  },
+  {
+    "test": "Reload preserves settings",
+    "pass": true
+  },
+  {
+    "test": "Reload resets unlocked session",
+    "pass": true
+  }
+]

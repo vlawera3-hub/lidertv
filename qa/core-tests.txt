@@ -1,0 +1,18 @@
+PASS Turkish normalization
+PASS Unsafe URI rejected
+PASS HTTPS accepted
+PASS Canonical URL preserves case-sensitive token
+PASS Streaming import record count
+PASS Commas inside header attributes
+PASS Group with comma
+PASS Explicit VOD classification
+PASS Series path classification
+PASS Inferred type counter
+PASS Source date in seconds
+PASS Per-stream User-Agent
+PASS FTS expressions escaped
+PASS Invalid list refused
+PASS Duplicates removed without dropping token variants
+PASS HLS segment manifest not imported as catalog
+PASS Explicit plural movies type accepted
+17 core checks passed.

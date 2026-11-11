@@ -1,0 +1,45 @@
+{
+  "tests": [
+    {
+      "test": "Single source opens live section",
+      "pass": true
+    },
+    {
+      "test": "Movies show poster grid",
+      "pass": true
+    },
+    {
+      "test": "Single movie click opens details, not player",
+      "pass": true
+    },
+    {
+      "test": "Latest shelf capped at 50",
+      "pass": true
+    },
+    {
+      "test": "Section search does not search actors",
+      "pass": true
+    },
+    {
+      "test": "Global search includes actor metadata",
+      "pass": true
+    },
+    {
+      "test": "Resume position persisted",
+      "pass": true
+    },
+    {
+      "test": "TV layout toggle active",
+      "pass": true
+    },
+    {
+      "test": "Remote arrow navigation has focus",
+      "pass": true
+    },
+    {
+      "test": "No runtime JavaScript errors",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

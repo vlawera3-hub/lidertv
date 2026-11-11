@@ -1,0 +1,16 @@
+{
+  "pure_java_core_passed": 17,
+  "demo_logic_passed": 24,
+  "browser_ui_passed": 10,
+  "chromium_touch_remote_passed": 7,
+  "desktop_sql_synthetic_passed": 10,
+  "java_source_files_syntax_parsed": 7,
+  "android_type_check_performed": false,
+  "apk_built": false,
+  "phone_device_tested": false,
+  "tv_box_device_tested": false,
+  "original_m3uandroid_fork_modified": false,
+  "independent_module_integration_helper_included": true,
+  "user_actual_playlist_inspected": false,
+  "scope": "Browser and desktop logic only. Not an Android acceptance test."
+}

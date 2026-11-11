@@ -1,0 +1,12 @@
+LiderTv 0.1.0
+
+Bu paket APK degildir; Android kodu burada derlenmedi.
+
+1. docs/LiderTv_Onizleme.html dosyasını tarayıcıda açın.
+2. Üst sağdan Telefon / TV görünümünü değiştirin.
+3. Film afişine tıklayın: bilgi ekranı açılır. Uzun basın: temsili oynatma.
+4. Ayarlar ekranını ve menüleri deneyin.
+
+Önizleme gerçek yayın oynatmaz. Örnek yayınlar ve oyuncular kurgusaldır.
+Kaynak proje, derleme yöntemleri ve sınırlar README.md dosyasında.
+Mevcut M3UAndroid kurulumunu kaldırmayın; bu paket onun verilerini taşımaz.

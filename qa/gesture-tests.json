@@ -1,0 +1,30 @@
+[
+  {
+    "test": "Actual touch center swipe moves Live to Movies",
+    "pass": true
+  },
+  {
+    "test": "Actual edge touch opens category drawer",
+    "pass": true
+  },
+  {
+    "test": "Actual left touch closes category drawer",
+    "pass": true
+  },
+  {
+    "test": "Actual pull down opens scoped search",
+    "pass": true
+  },
+  {
+    "test": "Actual long poster touch opens simulated player directly",
+    "pass": true
+  },
+  {
+    "test": "Actual long touch drag persists menu order",
+    "pass": true
+  },
+  {
+    "test": "Remote long OK opens simulated player",
+    "pass": true
+  }
+]

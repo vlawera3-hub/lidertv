@@ -1,0 +1,48 @@
+{
+  "scope": "Synthetic desktop SQLite, not Android or user data",
+  "synthetic_inputs": 219906,
+  "unique": 200000,
+  "elapsed_seconds": 12.346,
+  "tests": [
+    {
+      "test": "Actual Store schema and FTS4 triggers create successfully",
+      "pass": true
+    },
+    {
+      "test": "219906 synthetic inputs produce 200000 unique rows",
+      "pass": true
+    },
+    {
+      "test": "FTS trigger index has one entry per item",
+      "pass": true
+    },
+    {
+      "test": "Global actor prefix query matches",
+      "pass": true
+    },
+    {
+      "test": "Scoped title query excludes cast",
+      "pass": true
+    },
+    {
+      "test": "Current generation visible",
+      "pass": true
+    },
+    {
+      "test": "Incomplete refresh stays hidden; old generation remains",
+      "pass": true
+    },
+    {
+      "test": "Cancelled refresh leaves old count and FTS intact",
+      "pass": true
+    },
+    {
+      "test": "Parental group filter hides all items",
+      "pass": true
+    },
+    {
+      "test": "Large catalog returns a 48-item page",
+      "pass": true
+    }
+  ]
+}

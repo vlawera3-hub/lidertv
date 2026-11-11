@@ -1,0 +1,8 @@
+PARSED app/src/main/java/tr/lidertv/app/PlayerActivity.java
+PARSED app/src/main/java/tr/lidertv/app/Text.java
+PARSED app/src/main/java/tr/lidertv/app/Vault.java
+PARSED app/src/main/java/tr/lidertv/app/Importer.java
+PARSED app/src/main/java/tr/lidertv/app/Store.java
+PARSED app/src/main/java/tr/lidertv/app/M3uParser.java
+PARSED app/src/main/java/tr/lidertv/app/MainActivity.java
+7 Java files parsed; no Android type checking or APK build performed.

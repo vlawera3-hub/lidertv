@@ -1,0 +1,48 @@
+import json
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+root=Path(__file__).resolve().parent.parent
+results=[]
+def check(name,condition):
+    results.append({'test':name,'pass':bool(condition)})
+    print(('PASS ' if condition else 'FAIL ')+name)
+    if not condition: raise AssertionError(name)
+with sync_playwright() as p:
+    browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+    context=browser.new_context(viewport={'width':412,'height':915},device_scale_factor=1)
+    page=context.new_page();errors=[]
+    page.on('pageerror',lambda e:errors.append(str(e)))
+    page.set_content((root/'docs/LiderTv_Onizleme.html').read_text(encoding='utf-8'))
+    page.wait_for_selector('.card')
+    check('Single source opens live section',page.locator('h1').inner_text()=='Canl\u0131 TV')
+    page.screenshot(path=str(root/'qa/phone-live.png'),full_page=True)
+    page.locator('.navitem[data-id="movies"]').click();page.wait_for_selector('.card')
+    check('Movies show poster grid',page.locator('.card').count()==48)
+    page.screenshot(path=str(root/'qa/phone-movies.png'),full_page=True)
+    page.locator('.card').first.click();page.wait_for_selector('.details')
+    check('Single movie click opens details, not player',page.locator('.details').count()==1 and page.locator('.demo-player').count()==0)
+    page.screenshot(path=str(root/'qa/phone-details.png'),full_page=True)
+    page.locator('[data-action="close"]').click()
+    page.locator('[data-action="shelf"][data-shelf="new"]').click();page.wait_for_timeout(150)
+    result=page.evaluate("Demo.request('browse',{kind:'movies',shelf:'new',limit:60})")
+    check('Latest shelf capped at 50',result['total']==50 and len(result['items'])==50)
+    page.locator('[data-action="shelf"][data-shelf="all"]').click();page.wait_for_timeout(150)
+    page.locator('[data-action="search"]').click();page.locator('#searchInput').fill('Deniz');page.wait_for_timeout(450)
+    check('Section search does not search actors',page.locator('.card').count()==0)
+    page.locator('.navitem[data-id="home"]').click();page.wait_for_selector('#searchInput');page.locator('#searchInput').fill('Deniz');page.wait_for_timeout(450)
+    check('Global search includes actor metadata',page.locator('.card').count()>0)
+    page.evaluate("Demo.request('progress',{id:'movies_1',pos:1230000,duration:5400000})")
+    resume=page.evaluate("Demo.request('details',{id:'movies_1'})")
+    check('Resume position persisted',resume['pos']==1230000)
+    page.locator('.navitem[data-id="settings"]').click();page.wait_for_selector('.settings')
+    page.screenshot(path=str(root/'qa/phone-settings.png'),full_page=True)
+    page.locator('[data-action="display"]').click();page.wait_for_selector('.modal')
+    page.screenshot(path=str(root/'qa/phone-playback-settings.png'),full_page=True)
+    page.locator('[data-action="close"]').click();page.locator('[data-action="mode"]').click()
+    page.set_viewport_size({'width':1440,'height':900});page.locator('.navitem[data-id="movies"]').click();page.wait_for_selector('.card')
+    check('TV layout toggle active',page.locator('body').get_attribute('class').find('tv')>=0)
+    page.screenshot(path=str(root/'qa/tv-movies.png'),full_page=True)
+    page.keyboard.press('ArrowRight');check('Remote arrow navigation has focus',page.evaluate("document.activeElement.classList.contains('focusable')"))
+    check('No runtime JavaScript errors',not errors)
+    (root/'qa/browser-tests.json').write_text(json.dumps({'tests':results,'errors':errors},ensure_ascii=False,indent=2))
+    browser.close()
