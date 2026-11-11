@@ -50,25 +50,29 @@ public final class Importer {
     }
     private void checkCancel()throws Text.UserError{if(cancelled||Thread.currentThread().isInterrupted())throw new Text.UserError("\u0130\u00e7e aktarma iptal edildi. \u00d6nceki liste korundu.");}
     private final class Writer implements AutoCloseable {
-        long n=0;boolean inTx=false;final Map<String,String>groups=new HashMap<>();final String sid;final long gen;
-        Writer(String sid,long gen){this.sid=sid;this.gen=gen;}
+        long n=0; boolean inTx=false; final Map<String,String> groups=new HashMap<>(); final String sid; final long gen; final String run;
+        Writer(String sid,long gen,String run){this.sid=sid;this.gen=gen;this.run=run;}
         void add(JSONObject row)throws Exception{
-            checkCancel();if(!inTx){db.getWritableDatabase().beginTransactionNonExclusive();inTx=true;}
-            String kind=row.getString("kind"),name=row.optString("group","Di\u011fer"),key=kind+"\u0000"+name;
+            checkCancel();
+            if(!inTx){db.getWritableDatabase().beginTransactionNonExclusive();inTx=true;}
+            String kind=row.getString("kind"),name=row.optString("group","Diğer"),key=kind+"\u0000"+name;
             String gid=groups.get(key);if(gid==null){gid=db.group(sid,kind,name);groups.put(key,gid);}
-            db.putItem(row.put("sid",sid).put("gen",gen).put("gid",gid).put("seq",n++));
-            if(n%400==0){flush();progress.update(n);}
+            row.put("sid",sid).put("gen",gen).put("gid",gid).put("seq",n);
+            db.stageItem(run,row,gen);
+            n++;
+            if(n%5000==0){flush();progress.update(n);}
         }
         void flush(){if(inTx){db.getWritableDatabase().setTransactionSuccessful();db.getWritableDatabase().endTransaction();inTx=false;}}
-        public void close(){if(inTx){db.getWritableDatabase().endTransaction();inTx=false;}}
+        public void close(){flush();}
     }
     public JSONObject importSource(JSONObject spec)throws Exception{
         db.vault.requireAdmin();if(!busy.compareAndSet(false,true))throw new Text.UserError("Ba\u015fka bir liste i\u015fleniyor.");cancelled=false;
-        String sid=spec.optString("id");boolean fresh=sid.isEmpty();long gen=System.currentTimeMillis();
+        String sid=spec.optString("id");boolean fresh=sid.isEmpty();long gen=spec.optLong("gen",0);String run=UUID.randomUUID().toString();
         try{
             if(fresh){sid=UUID.randomUUID().toString();spec.put("id",sid);db.createSource(spec);}else spec=db.source(sid);
+            gen=spec.optLong("gen",0);
             String sourceId=sid;long raw=0,inferred=0,skipped=0;
-            try(Writer w=new Writer(sid,gen)){
+            try(Writer w=new Writer(sid,gen,run)){
                 if(spec.getString("type").equals("xtream")){
                     JSONObject src=spec;
                     for(String kind:new String[]{"live","movies","series"}){
@@ -93,8 +97,10 @@ public final class Importer {
                 }
                 w.flush();
             }
-            checkCancel();db.commitGeneration(sid,gen,raw,inferred,skipped);return new JSONObject().put("sources",db.sources()).put("stats",db.stats());
-        }catch(Exception e){if(!sid.isEmpty()){db.discardGeneration(sid,gen);if(fresh)db.getWritableDatabase().delete("sources","id=? AND gen=0",new String[]{sid});}throw e;
+            checkCancel();
+            JSONObject sync=db.syncStaging(sid,run,gen,raw,inferred,skipped);
+            return new JSONObject().put("sources",db.sources()).put("stats",db.stats()).put("sync",sync);
+        }catch(Exception e){db.clearStaging(run);if(!sid.isEmpty()&&fresh)db.getWritableDatabase().delete("sources","id=? AND gen=0",new String[]{sid});throw e;
         }finally{busy.set(false);}
     }
     private static long date(JSONObject o,String k){long n=o.optLong(k,0);return n>0&&n<100000000000L?n*1000:n;}
