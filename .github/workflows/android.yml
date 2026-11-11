@@ -32,16 +32,10 @@ jobs:
           adb version
           yes | sdkmanager --licenses > /dev/null || true
 
-      - name: Gradle wrapper kontrol
+           - name: Gradle ile APK derle
         run: |
-          if [ ! -f ./gradlew ]; then
-            echo "HATA: gradlew dosyasi bulunamadi."
-            exit 1
-          fi
-          chmod +x ./gradlew
-
-      - name: APK derle
-        run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
+          gradle --version
+          gradle :app:assembleDebug --stacktrace --no-daemon
 
       - name: APK paketle
         run: |
