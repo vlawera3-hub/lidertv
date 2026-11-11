@@ -24,7 +24,11 @@ jobs:
       - name: Android SDK kur
         uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: ''
+
+      - name: Android SDK paketlerini kur
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: SDK kontrol
         run: |
@@ -32,10 +36,16 @@ jobs:
           adb version
           yes | sdkmanager --licenses > /dev/null || true
 
-        - name: Gradle ile APK derle
-        run: |
-          gradle --version
-          gradle :app:assembleDebug --stacktrace --no-daemon
+      - name: Gradle 8.11.1 kur
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Gradle sürümünü kontrol et
+        run: gradle --version
+
+      - name: APK derle
+        run: gradle :app:assembleDebug --stacktrace --no-daemon
 
       - name: APK paketle
         run: |
@@ -44,7 +54,7 @@ jobs:
           cd output
           sha256sum LiderTv_0.1.0_Telefon_TV.apk > SHA256SUMS.txt
 
-      - name: APK yukle
+      - name: APK yükle
         uses: actions/upload-artifact@v4
         with:
           name: LiderTv_0.1.0_Telefon_TV_Deneme
