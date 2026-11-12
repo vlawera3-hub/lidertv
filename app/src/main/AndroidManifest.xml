@@ -1,18 +1,65 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
-    <uses-feature android:name="android.software.leanback" android:required="false"/>
-    <queries><intent><action android:name="android.intent.action.VIEW"/><data android:mimeType="video/*"/></intent></queries>
-    <application android:label="@string/app_name" android:icon="@drawable/icon"
-        android:banner="@drawable/banner" android:theme="@style/AppTheme"
-        android:enableOnBackInvokedCallback="false" android:allowBackup="false" android:usesCleartextTraffic="true" android:supportsRtl="false">
-        <activity android:name=".MainActivity" android:exported="true"
+
+    <!-- M3U / kaynak güncellemesini uygulama arka plandayken sürdürmek için -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false"/>
+
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false"/>
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="video/*"/>
+        </intent>
+    </queries>
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@drawable/icon"
+        android:banner="@drawable/banner"
+        android:theme="@style/AppTheme"
+        android:enableOnBackInvokedCallback="false"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="true"
+        android:supportsRtl="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
-            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
-            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LEANBACK_LAUNCHER"/></intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+            </intent-filter>
+
         </activity>
-        <activity android:name=".PlayerActivity" android:exported="false"
-            android:configChanges="orientation|screenSize|keyboardHidden" android:screenOrientation="sensorLandscape"/>
+
+        <activity
+            android:name=".PlayerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:screenOrientation="sensorLandscape"/>
+
+        <!-- M3U kaynak içe aktarma / güncelleme servisi -->
+        <service
+            android:name=".ImportService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"/>
+
     </application>
 </manifest>
