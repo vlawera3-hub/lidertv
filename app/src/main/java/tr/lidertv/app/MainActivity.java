@@ -5,6 +5,7 @@ import org.json.*;
 import java.util.*;import java.util.concurrent.*;
 public final class MainActivity extends Activity {
     private WebView web;private Store db;private Importer importer;private final ExecutorService work=Executors.newFixedThreadPool(2);private boolean openingPlayer=false,destroyed=false;
+    private final BroadcastReceiver importReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){String type=i.getStringExtra(ImportService.EXTRA_TYPE);String raw=i.getStringExtra(ImportService.EXTRA_DATA);try{JSONObject data=raw==null?new JSONObject():new JSONObject(raw);if("progress".equals(type))event("importProgress",data);else if("started".equals(type))event("importStarted",data);else if("done".equals(type))event("importDone",data);else if("error".equals(type))event("error",data);}catch(Exception e){event("error",new JSONObjectSafe().put("message",Text.safeError(e)).value);}}};
     private static final String HOME="https://appassets.androidplatform.net/assets/ui/index.html";
     @Override protected void attachBaseContext(Context base){Configuration c=new Configuration(base.getResources().getConfiguration());c.setLocale(Locale.forLanguageTag("tr"));super.attachBaseContext(base.createConfigurationContext(c));}
     @Override public void onCreate(Bundle state){super.onCreate(state);db=new Store(this);web=new WebView(this);
@@ -16,6 +17,8 @@ public final class MainActivity extends Activity {
             @Override public void onReceivedSslError(WebView v,android.webkit.SslErrorHandler h,android.net.http.SslError e){h.cancel();}
         });
         web.setBackgroundColor(0xff080b14);web.addJavascriptInterface(new Bridge(),"LiderNative");setContentView(web);
+        IntentFilter f=new IntentFilter(ImportService.EVENT);
+        if(Build.VERSION.SDK_INT>=33)registerReceiver(importReceiver,f,Context.RECEIVER_NOT_EXPORTED);else registerReceiver(importReceiver,f);
         importer=new Importer(this,db,n->event("importProgress",new JSONObjectSafe().put("records",n).value));web.loadUrl(HOME);
     }
     private void js(String script){runOnUiThread(()->{if(!destroyed&&web!=null)web.evaluateJavascript(script,null);});}
@@ -41,8 +44,8 @@ public final class MainActivity extends Activity {
                 case "deleteSource" -> {if(importer.busy.get())throw new Text.UserError("Aktar\u0131m tamamlanmadan kaynak silinemez.");db.removeSource(q.getString("id"));yield boot();}
                 case "scanSource" -> importer.scanSource(q);
                 case "saveSourceGroups" -> {importer.saveSourceGroups(q.getString("id"),q.optJSONArray("selectedGroups"));yield new JSONObject();}
-                case "import" -> importer.importSource(q);
-                case "cancelImport" -> {importer.cancelled=true;yield new JSONObject();}
+                case "import" -> {startBackgroundImport(q);yield new JSONObject().put("background",true);}
+                case "cancelImport" -> {importer.cancelled=true;Intent cancel=new Intent(this,ImportService.class).setAction(ImportService.ACTION_CANCEL);startService(cancel);yield new JSONObject();}
                 case "file" -> {db.vault.requireAdmin();runOnUiThread(()->{
                     Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
                     try{openingPlayer=true;startActivityForResult(intent,12);}catch(ActivityNotFoundException e){openingPlayer=false;event("error",new JSONObjectSafe().put("message","Cihazda dosya se\u00e7ici yok. M3U adresi kullan\u0131n.").value);}
@@ -51,6 +54,12 @@ public final class MainActivity extends Activity {
                 default -> throw new Text.UserError("Bilinmeyen i\u015flem.");
             };reply(id,result,null);}catch(Exception e){reply(id,null,Text.safeError(e));}});
         }
+    }
+    private void startBackgroundImport(JSONObject q)throws Exception{
+        db.vault.requireAdmin();
+        if(ImportService.RUNNING.get())throw new Text.UserError("Başka bir kaynak aktarılıyor.");
+        Intent s=new Intent(this,ImportService.class);s.setAction(ImportService.ACTION_START);s.putExtra(ImportService.EXTRA_SPEC,q.toString());
+        if(Build.VERSION.SDK_INT>=26)startForegroundService(s);else startService(s);
     }
     private void play(JSONObject q)throws Exception{
         JSONObject item=db.item(q.getString("id"),true);
@@ -74,6 +83,6 @@ public final class MainActivity extends Activity {
     @Override public boolean dispatchKeyEvent(KeyEvent e){int k=e.getKeyCode();if(web!=null&&(k==19||k==20||k==21||k==22||k==23||k==66||k==82||k==84||k==92||k==93)){
         js("window.Lider && Lider.key("+k+","+e.getAction()+","+e.getRepeatCount()+")");return true;
     }return super.dispatchKeyEvent(e);}
-    @Override protected void onDestroy(){destroyed=true;importer.cancelled=true;work.shutdownNow();if(web!=null){web.removeJavascriptInterface("LiderNative");web.destroy();web=null;}super.onDestroy();}
+    @Override protected void onDestroy(){destroyed=true;importer.cancelled=true;try{unregisterReceiver(importReceiver);}catch(Exception ignored){}work.shutdownNow();if(web!=null){web.removeJavascriptInterface("LiderNative");web.destroy();web=null;}super.onDestroy();}
     private static final class JSONObjectSafe{final JSONObject value=new JSONObject();JSONObjectSafe put(String k,Object v){try{value.put(k,v);}catch(Exception ignored){}return this;}}
 }
