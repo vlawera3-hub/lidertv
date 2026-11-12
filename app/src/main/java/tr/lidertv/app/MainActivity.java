@@ -39,6 +39,8 @@ public final class MainActivity extends Activity {
                 case "lock" -> {Vault.unlocked=false;yield boot();}
                 case "clearHistory" -> {db.clearHistory();yield new JSONObject();}
                 case "deleteSource" -> {if(importer.busy.get())throw new Text.UserError("Aktar\u0131m tamamlanmadan kaynak silinemez.");db.removeSource(q.getString("id"));yield boot();}
+                case "scanSource" -> importer.scanSource(q);
+                case "saveSourceGroups" -> {importer.saveSourceGroups(q.getString("id"),q.optJSONArray("selectedGroups"));yield new JSONObject();}
                 case "import" -> importer.importSource(q);
                 case "cancelImport" -> {importer.cancelled=true;yield new JSONObject();}
                 case "file" -> {db.vault.requireAdmin();runOnUiThread(()->{
@@ -64,7 +66,7 @@ public final class MainActivity extends Activity {
     private void reply(String id,Object value,String error){String r=value==null?"null":value.toString();js("window.LiderReply && LiderReply("+JSONObject.quote(id)+","+r+","+(error==null?"null":JSONObject.quote(error))+")");}
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==12&&result==RESULT_OK&&data!=null&&data.getData()!=null){
         Uri uri=data.getData();try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(SecurityException ignored){}
-        work.execute(()->{try{JSONObject r=importer.importSource(new JSONObject().put("type","file").put("name","Yerel M3U listesi").put("url",uri.toString()));event("importDone",r);}catch(Exception e){event("error",new JSONObjectSafe().put("message",Text.safeError(e)).value);}});
+        work.execute(()->{try{JSONObject spec=new JSONObject().put("type","file").put("name","Yerel M3U listesi").put("url",uri.toString());JSONObject scan=importer.scanSource(spec);event("fileScan",new JSONObjectSafe().put("spec",spec).put("scan",scan).value);}catch(Exception e){event("error",new JSONObjectSafe().put("message",Text.safeError(e)).value);}});
     }}
     @Override protected void onResume(){super.onResume();js("window.Lider && Lider.refresh()");}
     @Override protected void onStop(){super.onStop();if(!openingPlayer)Vault.unlocked=false;openingPlayer=false;}
