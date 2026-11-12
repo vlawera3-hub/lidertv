@@ -50,29 +50,81 @@ public final class Importer {
     }
     private void checkCancel()throws Text.UserError{if(cancelled||Thread.currentThread().isInterrupted())throw new Text.UserError("\u0130\u00e7e aktarma iptal edildi. \u00d6nceki liste korundu.");}
     private final class Writer implements AutoCloseable {
-        long n=0; boolean inTx=false; final Map<String,String> groups=new HashMap<>(); final String sid; final long gen; final String run;
-        Writer(String sid,long gen,String run){this.sid=sid;this.gen=gen;this.run=run;}
+        long n=0;boolean inTx=false;final Map<String,String>groups=new HashMap<>();final String sid;final long gen;
+        Writer(String sid,long gen){this.sid=sid;this.gen=gen;}
         void add(JSONObject row)throws Exception{
-            checkCancel();
-            if(!inTx){db.getWritableDatabase().beginTransactionNonExclusive();inTx=true;}
-            String kind=row.getString("kind"),name=row.optString("group","Diğer"),key=kind+"\u0000"+name;
+            checkCancel();if(!inTx){db.getWritableDatabase().beginTransactionNonExclusive();inTx=true;}
+            String kind=row.getString("kind"),name=row.optString("group","Di\u011fer"),key=kind+"\u0000"+name;
             String gid=groups.get(key);if(gid==null){gid=db.group(sid,kind,name);groups.put(key,gid);}
-            row.put("sid",sid).put("gen",gen).put("gid",gid).put("seq",n);
-            db.stageItem(run,row,gen);
-            n++;
-            if(n%5000==0){flush();progress.update(n);}
+            db.putItem(row.put("sid",sid).put("gen",gen).put("gid",gid).put("seq",n++));
+            if(n%400==0){flush();progress.update(n);}
         }
         void flush(){if(inTx){db.getWritableDatabase().setTransactionSuccessful();db.getWritableDatabase().endTransaction();inTx=false;}}
-        public void close(){flush();}
+        public void close(){if(inTx){db.getWritableDatabase().endTransaction();inTx=false;}}
+    }
+    private Set<String> selected(JSONObject spec){
+        Set<String> out=new HashSet<>();
+        JSONArray a=spec.optJSONArray("selectedGroups");
+        if(a!=null)for(int i=0;i<a.length();i++)out.add(a.optString(i));
+        return out;
+    }
+    private boolean include(JSONObject spec,String kind,String key){
+        Set<String> s=selected(spec);
+        return s.isEmpty()||s.contains(kind+"\u0000"+key);
+    }
+    public void saveSourceGroups(String id,JSONArray groups)throws Exception{
+        db.vault.requireAdmin();
+        JSONObject spec=db.source(id);
+        spec.put("selectedGroups",groups==null?new JSONArray():groups);
+        db.updateSourceConfig(spec);
+    }
+    public JSONObject scanSource(JSONObject input)throws Exception{
+        db.vault.requireAdmin();
+        JSONObject spec=input.optString("id").isEmpty()?input:db.source(input.getString("id"));
+        String type=spec.optString("type","m3u");
+        JSONObject out=new JSONObject().put("type",type).put("categories",new JSONArray()).put("records",0).put("selectedGroups",spec.optJSONArray("selectedGroups")!=null?spec.optJSONArray("selectedGroups"):new JSONArray());
+        if(type.equals("xtream")){
+            JSONArray cats=new JSONArray();
+            for(String kind:new String[]{"live","movies","series"}){
+                String apiType=kind.equals("movies")?"vod":kind;
+                Map<String,String> cmap=new LinkedHashMap<>();
+                array(spec,"get_"+apiType+"_categories",o->cmap.put(o.optString("category_id"),o.optString("category_name","Diğer")));
+                for(Map.Entry<String,String> e:cmap.entrySet())cats.put(new JSONObject().put("key",kind+"\u0000"+e.getKey()).put("kind",kind).put("name",e.getValue()).put("count",0).put("remote",e.getKey()));
+            }
+            out.put("categories",cats);
+            return out;
+        }
+        Reader rd;
+        if(type.equals("file")){
+            InputStream in=context.getContentResolver().openInputStream(Uri.parse(spec.getString("url")));
+            if(in==null)throw new Text.UserError("Dosya açılamadı.");
+            rd=new InputStreamReader(in,StandardCharsets.UTF_8);
+        }else rd=network(spec.getString("url"),spec.optBoolean("allowHttp"));
+        Map<String,Integer> counts=new LinkedHashMap<>();
+        Map<String,String[]> meta=new LinkedHashMap<>();
+        try(Reader reader=rd){
+            M3uParser.Stats st=M3uParser.parse(reader,e->{
+                String key=e.kind+"\u0000"+e.group;
+                counts.put(key,counts.getOrDefault(key,0)+1);
+                meta.putIfAbsent(key,new String[]{e.kind,e.group});
+            });
+            out.put("records",st.records).put("inferred",st.inferred).put("skipped",st.skipped);
+            JSONArray cats=new JSONArray();
+            for(Map.Entry<String,Integer> e:counts.entrySet()){
+                String[] m=meta.get(e.getKey());
+                cats.put(new JSONObject().put("key",e.getKey()).put("kind",m[0]).put("name",m[1]).put("count",e.getValue()));
+            }
+            out.put("categories",cats);
+        }
+        return out;
     }
     public JSONObject importSource(JSONObject spec)throws Exception{
         db.vault.requireAdmin();if(!busy.compareAndSet(false,true))throw new Text.UserError("Ba\u015fka bir liste i\u015fleniyor.");cancelled=false;
-        String sid=spec.optString("id");boolean fresh=sid.isEmpty();long gen=spec.optLong("gen",0);String run=UUID.randomUUID().toString();
+        String sid=spec.optString("id");boolean fresh=sid.isEmpty();long gen=System.currentTimeMillis();
         try{
             if(fresh){sid=UUID.randomUUID().toString();spec.put("id",sid);db.createSource(spec);}else spec=db.source(sid);
-            gen=spec.optLong("gen",0);
             String sourceId=sid;long raw=0,inferred=0,skipped=0;
-            try(Writer w=new Writer(sid,gen,run)){
+            try(Writer w=new Writer(sid,gen)){
                 if(spec.getString("type").equals("xtream")){
                     JSONObject src=spec;
                     for(String kind:new String[]{"live","movies","series"}){
@@ -80,6 +132,7 @@ public final class Importer {
                         array(src,"get_"+apiType+"_categories",o->cats.put(o.optString("category_id"),o.optString("category_name","Di\u011fer")));
                         String action=kind.equals("series")?"get_series":"get_"+apiType+"_streams";
                         array(src,action,o->{
+                            String catId=o.optString("category_id");if(!include(spec,kind,catId))return;
                             String remote=o.optString(kind.equals("series")?"series_id":"stream_id");if(remote.isEmpty())throw new Text.UserError("Sa\u011flay\u0131c\u0131 i\u00e7erik kimli\u011fi g\u00f6ndermedi.");
                             String ext=o.optString("container_extension",kind.equals("live")?"ts":"mp4").replaceAll("[^A-Za-z0-9]","");if(ext.isEmpty())ext=kind.equals("live")?"ts":"mp4";
                             String path=kind.equals("movies")?"movie":kind;
@@ -91,16 +144,14 @@ public final class Importer {
                     }raw=w.n;
                 }else{
                     Reader rd;if(spec.getString("type").equals("file")){InputStream in=context.getContentResolver().openInputStream(Uri.parse(spec.getString("url")));if(in==null)throw new Text.UserError("Dosya a\u00e7\u0131lamad\u0131.");rd=new InputStreamReader(in,StandardCharsets.UTF_8);}else rd=network(spec.getString("url"),spec.optBoolean("allowHttp"));
-                    try(Reader reader=rd){M3uParser.Stats st=M3uParser.parse(reader,e->{JSONObject extra=new JSONObject().put("userAgent",e.userAgent).put("referer",e.referer);
+                    try(Reader reader=rd){M3uParser.Stats st=M3uParser.parse(reader,e->{if(!include(spec,e.kind,e.group))return;JSONObject extra=new JSONObject().put("userAgent",e.userAgent).put("referer",e.referer);
                         w.add(new JSONObject().put("id",Text.id(sourceId+"\u0000"+e.kind+"\u0000"+M3uParser.canonical(e.url))).put("kind",e.kind).put("title",e.title).put("url",e.url).put("group",e.group).put("poster",e.poster).put("cast",e.cast).put("plot",e.plot).put("added",e.added).put("extra",extra));
                     });raw=st.records;inferred=st.inferred;skipped=st.skipped;}
                 }
                 w.flush();
             }
-            checkCancel();
-            JSONObject sync=db.syncStaging(sid,run,gen,raw,inferred,skipped);
-            return new JSONObject().put("sources",db.sources()).put("stats",db.stats()).put("sync",sync);
-        }catch(Exception e){db.clearStaging(run);if(!sid.isEmpty()&&fresh)db.getWritableDatabase().delete("sources","id=? AND gen=0",new String[]{sid});throw e;
+            checkCancel();db.commitGeneration(sid,gen,raw,inferred,skipped);spec.put("selectedGroups",spec.optJSONArray("selectedGroups")!=null?spec.optJSONArray("selectedGroups"):new JSONArray());db.updateSourceConfig(spec);return new JSONObject().put("sources",db.sources()).put("stats",db.stats());
+        }catch(Exception e){if(!sid.isEmpty()){db.discardGeneration(sid,gen);if(fresh)db.getWritableDatabase().delete("sources","id=? AND gen=0",new String[]{sid});}throw e;
         }finally{busy.set(false);}
     }
     private static long date(JSONObject o,String k){long n=o.optLong(k,0);return n>0&&n<100000000000L?n*1000:n;}
