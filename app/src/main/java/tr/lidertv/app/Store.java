@@ -7,33 +7,23 @@ import java.util.*;
 /** SQLite, FTS, generation-based atomic refresh, per-folder parental filtering. */
 public final class Store extends SQLiteOpenHelper {
     public final Vault vault; private final Context context;
-    public Store(Context c){super(c,"lidertv.db",null,2);context=c.getApplicationContext();vault=new Vault(c);setWriteAheadLoggingEnabled(true);}
+    public Store(Context c){super(c,"lidertv.db",null,1);context=c.getApplicationContext();vault=new Vault(c);setWriteAheadLoggingEnabled(true);}
     @Override public void onCreate(SQLiteDatabase db){
         db.execSQL("CREATE TABLE sources(id TEXT PRIMARY KEY,name TEXT NOT NULL,type TEXT NOT NULL,secret TEXT NOT NULL,gen INTEGER NOT NULL DEFAULT 0,raw_count INTEGER DEFAULT 0,unique_count INTEGER DEFAULT 0,inferred INTEGER DEFAULT 0,skipped INTEGER DEFAULT 0,updated INTEGER DEFAULT 0)");
         db.execSQL("CREATE TABLE groups(id TEXT PRIMARY KEY,sid TEXT,kind TEXT,name TEXT,hidden INTEGER DEFAULT 0,pinned INTEGER DEFAULT 0,locked INTEGER DEFAULT 0,position INTEGER DEFAULT 999999)");
-        db.execSQL("CREATE TABLE items(id TEXT, sid TEXT, gen INTEGER, kind TEXT,gid TEXT,title TEXT,title_key TEXT,cast_text TEXT,cast_key TEXT,plot TEXT,poster TEXT,url TEXT,remote_id TEXT,extra TEXT,added INTEGER,seen INTEGER,seq INTEGER,parent TEXT DEFAULT '',fingerprint TEXT DEFAULT '',PRIMARY KEY(id,gen))");
+        db.execSQL("CREATE TABLE items(id TEXT, sid TEXT, gen INTEGER, kind TEXT,gid TEXT,title TEXT,title_key TEXT,cast_text TEXT,cast_key TEXT,plot TEXT,poster TEXT,url TEXT,remote_id TEXT,extra TEXT,added INTEGER,seen INTEGER,seq INTEGER,parent TEXT DEFAULT '',PRIMARY KEY(id,gen))");
         db.execSQL("CREATE INDEX items_scope ON items(sid,gen,kind,parent,gid)");
-        db.execSQL("CREATE INDEX items_id ON items(id)");
         db.execSQL("CREATE INDEX items_dates ON items(sid,gen,added,seen)");
         db.execSQL("CREATE INDEX items_parent ON items(parent,gen)");
         db.execSQL("CREATE TABLE history(id TEXT PRIMARY KEY,pos INTEGER DEFAULT 0,duration INTEGER DEFAULT 0,lastplayed INTEGER)");
         db.execSQL("CREATE TABLE favorites(id TEXT PRIMARY KEY)");
         db.execSQL("CREATE VIRTUAL TABLE item_search USING fts4(title_key,cast_key,tokenize=unicode61)");
-        db.execSQL("CREATE TABLE staging_items(run TEXT NOT NULL,id TEXT PRIMARY KEY,sid TEXT,gen INTEGER,kind TEXT,gid TEXT,title TEXT,title_key TEXT,cast_text TEXT,cast_key TEXT,plot TEXT,poster TEXT,url TEXT,remote_id TEXT,extra TEXT,added INTEGER,seen INTEGER,seq INTEGER,parent TEXT,fingerprint TEXT)");
-        db.execSQL("CREATE INDEX staging_run ON staging_items(run,sid)");
         db.execSQL("CREATE TRIGGER item_ai AFTER INSERT ON items BEGIN INSERT INTO item_search(docid,title_key,cast_key) VALUES(new.rowid,new.title_key,new.cast_key); END");
         db.execSQL("CREATE TRIGGER item_bd BEFORE DELETE ON items BEGIN DELETE FROM item_search WHERE docid=old.rowid; END");
         db.execSQL("CREATE TRIGGER item_bu BEFORE UPDATE ON items BEGIN DELETE FROM item_search WHERE docid=old.rowid; END");
         db.execSQL("CREATE TRIGGER item_au AFTER UPDATE ON items BEGIN INSERT INTO item_search(docid,title_key,cast_key) VALUES(new.rowid,new.title_key,new.cast_key); END");
     }
-    @Override public void onUpgrade(SQLiteDatabase db,int old,int now){
-        if(old<2){
-            try{db.execSQL("ALTER TABLE items ADD COLUMN fingerprint TEXT DEFAULT ''");}catch(SQLException ignored){}
-            try{db.execSQL("CREATE INDEX items_id ON items(id)");}catch(SQLException ignored){}
-            db.execSQL("CREATE TABLE IF NOT EXISTS staging_items(run TEXT NOT NULL,id TEXT PRIMARY KEY,sid TEXT,gen INTEGER,kind TEXT,gid TEXT,title TEXT,title_key TEXT,cast_text TEXT,cast_key TEXT,plot TEXT,poster TEXT,url TEXT,remote_id TEXT,extra TEXT,added INTEGER,seen INTEGER,seq INTEGER,parent TEXT,fingerprint TEXT)");
-            db.execSQL("CREATE INDEX IF NOT EXISTS staging_run ON staging_items(run,sid)");
-        }
-    }
+    @Override public void onUpgrade(SQLiteDatabase db,int old,int now){throw new IllegalStateException("Explicit migration required");}
     public JSONObject settings()throws Exception{return new JSONObject(context.getSharedPreferences("ui",0).getString("settings","{}"));}
     public void saveSettings(JSONObject s)throws Exception{
         // Security credentials and PIN are never accepted through arbitrary UI preferences.
@@ -50,12 +40,21 @@ public final class Store extends SQLiteOpenHelper {
     }
     public JSONArray sources()throws Exception{
         JSONArray a=new JSONArray();try(Cursor c=getReadableDatabase().rawQuery("SELECT * FROM sources ORDER BY name",null)){
-            while(c.moveToNext())a.put(new JSONObject().put("id",str(c,"id")).put("name",str(c,"name")).put("type",str(c,"type")).put("raw",num(c,"raw_count")).put("unique",num(c,"unique_count")).put("duplicates",Math.max(0,num(c,"raw_count")-num(c,"unique_count"))).put("inferred",num(c,"inferred")).put("skipped",num(c,"skipped")).put("updated",num(c,"updated")));
+            while(c.moveToNext()){JSONObject r=new JSONObject().put("id",str(c,"id")).put("name",str(c,"name")).put("type",str(c,"type")).put("raw",num(c,"raw_count")).put("unique",num(c,"unique_count")).put("duplicates",Math.max(0,num(c,"raw_count")-num(c,"unique_count"))).put("inferred",num(c,"inferred")).put("skipped",num(c,"skipped")).put("updated",num(c,"updated"));try{JSONObject sec=new JSONObject(vault.decrypt(str(c,"secret")));r.put("selectedCount",sec.optJSONArray("selectedGroups")!=null?sec.getJSONArray("selectedGroups").length():0);}catch(Exception ignored){r.put("selectedCount",0);}a.put(r);}
         }return a;
     }
     public void createSource(JSONObject src)throws Exception{
         vault.requireAdmin();ContentValues v=new ContentValues();v.put("id",src.getString("id"));v.put("name",src.optString("name","Kayna\u011f\u0131m"));v.put("type",src.getString("type"));v.put("secret",vault.encrypt(src.toString()));getWritableDatabase().insertOrThrow("sources",null,v);
     }
+    public void updateSourceConfig(JSONObject src)throws Exception{
+        vault.requireAdmin();
+        ContentValues v=new ContentValues();
+        v.put("name",src.optString("name","Kayna\u011f\u0131m"));
+        v.put("type",src.optString("type","m3u"));
+        v.put("secret",vault.encrypt(src.toString()));
+        if(getWritableDatabase().update("sources",v,"id=?",new String[]{src.getString("id")})==0)throw new Text.UserError("Kaynak bulunamad\u0131.");
+    }
+
     public void removeSource(String sid)throws Exception{
         vault.requireAdmin();SQLiteDatabase db=getWritableDatabase();db.beginTransactionNonExclusive();try{
             db.execSQL("DELETE FROM history WHERE id IN(SELECT id FROM items WHERE sid=?)",new Object[]{sid});db.execSQL("DELETE FROM favorites WHERE id IN(SELECT id FROM items WHERE sid=?)",new Object[]{sid});
@@ -66,50 +65,24 @@ public final class Store extends SQLiteOpenHelper {
         String id=Text.id(sid+"\u0000"+kind+"\u0000"+name);ContentValues v=new ContentValues();v.put("id",id);v.put("sid",sid);v.put("kind",kind);v.put("name",name);
         getWritableDatabase().insertWithOnConflict("groups",null,v,SQLiteDatabase.CONFLICT_IGNORE);return id;
     }
-    private static String fingerprint(JSONObject row){
-        String raw=row.optString("kind")+"\u0000"+row.optString("title")+"\u0000"+row.optString("group")+"\u0000"+row.optString("url")+"\u0000"+row.optString("poster")+"\u0000"+row.optString("cast")+"\u0000"+row.optString("plot")+"\u0000"+row.optLong("added")+"\u0000"+row.optString("parent")+"\u0000"+row.optString("remote");
-        return Text.id(raw);
-    }
-    private ContentValues itemValues(JSONObject row,String sid,long gen,long seen) throws Exception {
-        ContentValues v=new ContentValues();v.put("id",row.getString("id"));v.put("sid",sid);v.put("gen",gen);v.put("kind",row.getString("kind"));v.put("gid",row.getString("gid"));
-        v.put("title",row.getString("title"));v.put("title_key",Text.fold(row.getString("title")));v.put("cast_text",row.optString("cast"));v.put("cast_key",Text.fold(row.optString("cast")));v.put("plot",row.optString("plot"));v.put("poster",row.optString("poster"));
-        v.put("url",vault.encrypt(row.optString("url")));v.put("remote_id",row.optString("remote"));v.put("extra",vault.encrypt(row.optJSONObject("extra")==null?"{}":row.getJSONObject("extra").toString()));
-        v.put("added",row.optLong("added"));v.put("seen",seen);v.put("seq",row.optLong("seq"));v.put("parent",row.optString("parent"));v.put("fingerprint",fingerprint(row));return v;
-    }
-    public void stageItem(String run,JSONObject row,long gen)throws Exception{
-        String id=row.getString("id"); SQLiteDatabase db=getWritableDatabase();
-        ContentValues v=itemValues(row,row.getString("sid"),gen,row.optLong("seen",System.currentTimeMillis()));
-        v.put("run",run);db.insertWithOnConflict("staging_items",null,v,SQLiteDatabase.CONFLICT_REPLACE);
-    }
-    public JSONObject syncStaging(String sid,String run,long gen,long raw,long inferred,long skipped)throws Exception{
-        SQLiteDatabase db=getWritableDatabase();
-        long unique=DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM staging_items WHERE run=? AND sid=? AND parent=''",new String[]{run,sid});
-        if(unique==0)throw new Text.UserError("Kaynak bo\u015f d\u00f6nd\u00fc; mevcut liste korunuyor.");
-        db.beginTransactionNonExclusive();
-        try{
-            // Preserve first-seen dates and existing metadata when the provider omits them.
-            db.execSQL("UPDATE staging_items SET seen=COALESCE((SELECT old.seen FROM items old WHERE old.id=staging_items.id AND old.sid=? ORDER BY old.gen DESC LIMIT 1),seen), cast_text=CASE WHEN trim(cast_text)='' THEN COALESCE((SELECT old.cast_text FROM items old WHERE old.id=staging_items.id AND old.sid=? ORDER BY old.gen DESC LIMIT 1),cast_text) ELSE cast_text END, plot=CASE WHEN trim(plot)='' THEN COALESCE((SELECT old.plot FROM items old WHERE old.id=staging_items.id AND old.sid=? ORDER BY old.gen DESC LIMIT 1),plot) ELSE plot END WHERE run=? AND sid=?",new Object[]{sid,sid,sid,run,sid});
-            // Delete only removed or changed rows. Stable IDs keep favourites/history attached to the content.
-            db.execSQL("DELETE FROM items WHERE sid=? AND (NOT EXISTS(SELECT 1 FROM staging_items s WHERE s.run=? AND s.id=items.id) OR EXISTS(SELECT 1 FROM staging_items s WHERE s.run=? AND s.id=items.id AND s.fingerprint<>items.fingerprint))",new Object[]{sid,run,run});
-            // Insert new and changed rows in one transaction. FTS triggers run once per affected row.
-            db.execSQL("INSERT INTO items(id,sid,gen,kind,gid,title,title_key,cast_text,cast_key,plot,poster,url,remote_id,extra,added,seen,seq,parent,fingerprint) SELECT s.id,s.sid,?,?,s.gid,s.title,s.title_key,s.cast_text,s.cast_key,s.plot,s.poster,s.url,s.remote_id,s.extra,s.added,s.seen,s.seq,s.parent,s.fingerprint FROM staging_items s WHERE s.run=? AND s.sid=? AND NOT EXISTS(SELECT 1 FROM items i WHERE i.id=s.id AND i.sid=s.sid)",new Object[]{gen,gen,run,sid});
-            db.execSQL("UPDATE sources SET raw_count=?,unique_count=?,inferred=?,skipped=?,updated=? WHERE id=?",new Object[]{raw,unique,inferred,skipped,System.currentTimeMillis(),sid});
-            db.execSQL("DELETE FROM staging_items WHERE run=?",new Object[]{run});
-            db.execSQL("DELETE FROM groups WHERE sid=? AND NOT EXISTS(SELECT 1 FROM items i WHERE i.gid=groups.id)",new Object[]{sid});
-            db.setTransactionSuccessful();
-        }finally{db.endTransaction();}
-        return new JSONObject().put("raw",raw).put("unique",unique).put("inferred",inferred).put("skipped",skipped);
-    }
-    public void clearStaging(String run){getWritableDatabase().delete("staging_items","run=?",new String[]{run});}
     public void putItem(JSONObject row)throws Exception{
         SQLiteDatabase db=getWritableDatabase();String id=row.getString("id");long seen=row.optLong("seen",System.currentTimeMillis());
-        ContentValues v=itemValues(row,row.getString("sid"),row.getLong("gen"),seen);db.insertOrThrow("items",null,v);
+        // Preserve first-seen date and previously loaded metadata across source refreshes.
+        try(Cursor c=db.rawQuery("SELECT seen,cast_text,plot FROM items WHERE id=? ORDER BY gen DESC LIMIT 1",new String[]{id})){
+            if(c.moveToFirst()){seen=num(c,"seen");if(row.optString("cast").isEmpty())row.put("cast",str(c,"cast_text"));if(row.optString("plot").isEmpty())row.put("plot",str(c,"plot"));}
+        }
+        ContentValues v=new ContentValues();v.put("id",id);v.put("sid",row.getString("sid"));v.put("gen",row.getLong("gen"));v.put("kind",row.getString("kind"));v.put("gid",row.getString("gid"));
+        v.put("title",row.getString("title"));v.put("title_key",Text.fold(row.getString("title")));v.put("cast_text",row.optString("cast"));v.put("cast_key",Text.fold(row.optString("cast")));v.put("plot",row.optString("plot"));v.put("poster",row.optString("poster"));
+        v.put("url",vault.encrypt(row.optString("url")));v.put("remote_id",row.optString("remote"));v.put("extra",vault.encrypt(row.optJSONObject("extra")==null?"{}":row.getJSONObject("extra").toString()));
+        v.put("added",row.optLong("added"));v.put("seen",seen);v.put("seq",row.optLong("seq"));v.put("parent",row.optString("parent"));
+        // UPDATE instead of REPLACE preserves rowid and FTS trigger consistency.
+        if(db.update("items",v,"id=? AND gen=?",new String[]{id,row.get("gen").toString()})==0)db.insertOrThrow("items",null,v);
     }
     public void commitGeneration(String sid,long gen,long raw,long inferred,long skipped)throws Exception{
         SQLiteDatabase db=getWritableDatabase();long unique=DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM items WHERE sid=? AND gen=? AND parent=''",new String[]{sid,""+gen});
         if(unique==0)throw new Text.UserError("Kaynak bo\u015f d\u00f6nd\u00fc; mevcut liste korunuyor.");
         db.beginTransactionNonExclusive();try{
-            db.execSQL("UPDATE sources SET raw_count=?,unique_count=?,inferred=?,skipped=?,updated=? WHERE id=?",new Object[]{raw,unique,inferred,skipped,System.currentTimeMillis(),sid});
+            db.execSQL("UPDATE sources SET gen=?,raw_count=?,unique_count=?,inferred=?,skipped=?,updated=? WHERE id=?",new Object[]{gen,raw,unique,inferred,skipped,System.currentTimeMillis(),sid});
             db.delete("items","sid=? AND gen<>?",new String[]{sid,""+gen});db.setTransactionSuccessful();
         }finally{db.endTransaction();}
     }
