@@ -123,6 +123,7 @@ public final class Importer {
         String sid=spec.optString("id");boolean fresh=sid.isEmpty();long gen=System.currentTimeMillis();
         try{
             if(fresh){sid=UUID.randomUUID().toString();spec.put("id",sid);db.createSource(spec);}else spec=db.source(sid);
+            final JSONObject importSpec = spec;
             String sourceId=sid;long raw=0,inferred=0,skipped=0;
             try(Writer w=new Writer(sid,gen)){
                 if(spec.getString("type").equals("xtream")){
@@ -132,7 +133,7 @@ public final class Importer {
                         array(src,"get_"+apiType+"_categories",o->cats.put(o.optString("category_id"),o.optString("category_name","Di\u011fer")));
                         String action=kind.equals("series")?"get_series":"get_"+apiType+"_streams";
                         array(src,action,o->{
-                            String catId=o.optString("category_id");if(!include(spec,kind,catId))return;
+                            String catId=o.optString("category_id");if(!include(importSpec,kind,catId))return;
                             String remote=o.optString(kind.equals("series")?"series_id":"stream_id");if(remote.isEmpty())throw new Text.UserError("Sa\u011flay\u0131c\u0131 i\u00e7erik kimli\u011fi g\u00f6ndermedi.");
                             String ext=o.optString("container_extension",kind.equals("live")?"ts":"mp4").replaceAll("[^A-Za-z0-9]","");if(ext.isEmpty())ext=kind.equals("live")?"ts":"mp4";
                             String path=kind.equals("movies")?"movie":kind;
@@ -144,7 +145,7 @@ public final class Importer {
                     }raw=w.n;
                 }else{
                     Reader rd;if(spec.getString("type").equals("file")){InputStream in=context.getContentResolver().openInputStream(Uri.parse(spec.getString("url")));if(in==null)throw new Text.UserError("Dosya a\u00e7\u0131lamad\u0131.");rd=new InputStreamReader(in,StandardCharsets.UTF_8);}else rd=network(spec.getString("url"),spec.optBoolean("allowHttp"));
-                    try(Reader reader=rd){M3uParser.Stats st=M3uParser.parse(reader,e->{if(!include(spec,e.kind,e.group))return;JSONObject extra=new JSONObject().put("userAgent",e.userAgent).put("referer",e.referer);
+                    try(Reader reader=rd){M3uParser.Stats st=M3uParser.parse(reader,e->{if(!include(importSpec,e.kind,e.group))return;JSONObject extra=new JSONObject().put("userAgent",e.userAgent).put("referer",e.referer);
                         w.add(new JSONObject().put("id",Text.id(sourceId+"\u0000"+e.kind+"\u0000"+M3uParser.canonical(e.url))).put("kind",e.kind).put("title",e.title).put("url",e.url).put("group",e.group).put("poster",e.poster).put("cast",e.cast).put("plot",e.plot).put("added",e.added).put("extra",extra));
                     });raw=st.records;inferred=st.inferred;skipped=st.skipped;}
                 }
