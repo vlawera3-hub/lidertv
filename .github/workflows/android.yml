@@ -49,14 +49,19 @@ jobs:
 
       - name: APK paketle
         run: |
+          rm -rf output
           mkdir -p output
           cp app/build/outputs/apk/debug/app-debug.apk output/LiderTv_0.2.0_Telefon_TV.apk
-          cd output
-          sha256sum LiderTv_0.2.0_Telefon_TV.apk > SHA256SUMS.txt
+          sha256sum output/LiderTv_0.2.0_Telefon_TV.apk > output/SHA256SUMS.txt
+          echo "=== OUTPUT ==="
+          ls -lah output
+          file output/LiderTv_0.2.0_Telefon_TV.apk
 
-      - name: APK yükle
+      - name: Sadece APK artifact yukle
         uses: actions/upload-artifact@v4
         with:
           name: LiderTv_0.2.0_Telefon_TV_Deneme
-          path: output/
+          path: |
+            output/LiderTv_0.2.0_Telefon_TV.apk
+            output/SHA256SUMS.txt
           if-no-files-found: error
