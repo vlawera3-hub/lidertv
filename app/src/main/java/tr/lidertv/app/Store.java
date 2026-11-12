@@ -70,7 +70,7 @@ public final class Store extends SQLiteOpenHelper {
         String raw=row.optString("kind")+"\u0000"+row.optString("title")+"\u0000"+row.optString("group")+"\u0000"+row.optString("url")+"\u0000"+row.optString("poster")+"\u0000"+row.optString("cast")+"\u0000"+row.optString("plot")+"\u0000"+row.optLong("added")+"\u0000"+row.optString("parent")+"\u0000"+row.optString("remote");
         return Text.id(raw);
     }
-    private ContentValues itemValues(JSONObject row,String sid,long gen,long seen){
+    private ContentValues itemValues(JSONObject row,String sid,long gen,long seen) throws Exception {
         ContentValues v=new ContentValues();v.put("id",row.getString("id"));v.put("sid",sid);v.put("gen",gen);v.put("kind",row.getString("kind"));v.put("gid",row.getString("gid"));
         v.put("title",row.getString("title"));v.put("title_key",Text.fold(row.getString("title")));v.put("cast_text",row.optString("cast"));v.put("cast_key",Text.fold(row.optString("cast")));v.put("plot",row.optString("plot"));v.put("poster",row.optString("poster"));
         v.put("url",vault.encrypt(row.optString("url")));v.put("remote_id",row.optString("remote"));v.put("extra",vault.encrypt(row.optJSONObject("extra")==null?"{}":row.getJSONObject("extra").toString()));
