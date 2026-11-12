@@ -45,7 +45,7 @@ public final class MainActivity extends Activity {
                 case "scanSource" -> importer.scanSource(q);
                 case "saveSourceGroups" -> {importer.saveSourceGroups(q.getString("id"),q.optJSONArray("selectedGroups"));yield new JSONObject();}
                 case "import" -> {startBackgroundImport(q);yield new JSONObject().put("background",true);}
-                case "cancelImport" -> {importer.cancelled=true;Intent cancel=new Intent(this,ImportService.class).setAction(ImportService.ACTION_CANCEL);startService(cancel);yield new JSONObject();}
+                case "cancelImport" -> {importer.cancelled=true;Intent cancel=new Intent(MainActivity.this,ImportService.class).setAction(ImportService.ACTION_CANCEL);startService(cancel);yield new JSONObject();}
                 case "file" -> {db.vault.requireAdmin();runOnUiThread(()->{
                     Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
                     try{openingPlayer=true;startActivityForResult(intent,12);}catch(ActivityNotFoundException e){openingPlayer=false;event("error",new JSONObjectSafe().put("message","Cihazda dosya se\u00e7ici yok. M3U adresi kullan\u0131n.").value);}
